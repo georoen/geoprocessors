@@ -1,6 +1,7 @@
 #! /usr/bin/Rscript --vanilla
 #    radialFocal - Calculate a radial focal filter for an image
-#    Copyright (C) 2020 Matthias Weigand -- matthias.weigand[at]protonmail.com
+#    Copyright (C) 2021 Matthias Weigand -- matthias.weigand[at]protonmail.com
+#                       Jeroen Staab -- georoen[at]jstaab.de
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
@@ -33,7 +34,7 @@ opt <- parse_args(opt_parser)
 
 #==============================================================================#
 # Funtion body
-suppressMessages(library(raster))
+suppressMessages(library(terra))
 
 # check if input and output files are given
 if (is.na(opt$input) | is.na(opt$output)) {
@@ -42,10 +43,10 @@ if (is.na(opt$input) | is.na(opt$output)) {
 }
 
 # load input image
-r <- raster(opt$input)
+r <- rast(opt$input)
 
 # create circular focal weight matrix
-w <- focalWeight(r, d = opt$radius, type = 'circle')
+w <- focalMat(r, d = opt$radius, type = 'circle')
 w <- ifelse(w > 0, 1, NA)
 
 the_fun <- get(opt$fun)
@@ -58,9 +59,7 @@ focal(r, w,
         }
         ...(x)
       },
-      pad = TRUE, pad.value = NA, na.rm = TRUE,
-      filename = opt$output, overwrite = opt$overwrite,
-      options = c("COMPRESS=LZW", "BIGTIFF=IF_NEEDED"))
+      na.rm = TRUE,
+      filename = opt$output, overwrite = opt$overwrite, 
+      gdal = c("COMPRESS=LZW", "BIGTIFF=IF_NEEDED"))
 
-# remove created temporary files
-removeTmpFiles(0)

@@ -1,0 +1,103 @@
+---
+title: "Testing "
+output: html_notebook
+---
+
+# Experimental Setup
+In order to test the different implementations of focal window filtering using `raster` or `terra`, a sample file is processed. It may be important to note though, here only the actual packages are compared. With respect to `geoprocessors`, it would be useful to test the eventual implementation been called from a comandline as well as the GeoTIFFs actual file properties.
+```{r}
+opt <- list(
+  input = system.file("ex/logo.tif", package="terra"),
+  output = NULL,  # Not writing to file in this test
+  radius = 10,
+  fun = "mean",
+  overwrite = FALSE
+)
+```
+
+
+# RASTER Version
+First, the initial implementation by `mwip/geoprocessors` is run (commit #3303fd2).
+```{r}
+library(raster)
+
+raster_implementation <- function(opt) {
+  # load input image
+  r <- raster(opt$input)
+  
+  # create circular focal weight matrix
+  w <- focalWeight(r, d = opt$radius, type = 'circle')
+  w <- ifelse(w > 0, 1, NA)
+  
+  the_fun <- get(opt$fun)
+  
+  # apply focal matrix ver image
+  focal(r, w,
+        fun = function(x, na.rm, ... = the_fun) {
+          if (na.rm) {
+            x <- na.omit(x)
+          }
+          ...(x)
+        },
+        pad = TRUE, pad.value = NA, na.rm = TRUE)
+}
+
+# Visualize Result
+res_raster <- raster_implementation(opt)
+plot(res_raster)
+
+```
+
+# TERRA Version
+Analog, the sample file is processed with the `terra`-package next. Be aware though, it's syntax is slightly different. That said parameters such as `pad = TRUE` and `pad.value = NA` both are absent.
+```{r}
+library(terra)
+
+terra_implementation <- function(opt) {
+  # load input image
+  r <- rast(opt$input)
+  
+  # create circular focal weight matrix
+  w <- focalMat(r, d = opt$radius, type = 'circle')
+  w <- ifelse(w > 0, 1, NA)
+  
+  the_fun <- get(opt$fun)
+  
+  # apply focal matrix ver image
+  focal(r, w,
+        fun = function(x, na.rm, ... = the_fun) {
+          if (na.rm) {
+            x <- na.omit(x)
+          }
+          ...(x)
+        },
+        na.rm = TRUE)
+}
+res_terra <- terra_implementation(opt)
+
+# Visualize Result
+plot(res_terra)
+```
+
+# Compare Results
+When comparing the results, it can be seen that both packages come with their individual structures. The digital numbers though are identical.
+```{r}
+str(res_raster)
+str(res_terra)
+
+values_raster <- as.numeric(res_raster[])
+values_terra <- as.numeric(res_terra$red[])
+identical(values_raster, values_terra)
+```
+
+# Benchmark
+Last but not least, a benchmark is run in order to see computational benefits of using `terra`. Note, it would be interesting though to expand this benchmark with growing window sizes...
+```{r}
+library(microbenchmark)
+microbenchmark(
+  raster = raster_implementation(opt),
+  terra  = terra_implementation(opt)
+)
+boxplot(.Last.value)
+```
+
